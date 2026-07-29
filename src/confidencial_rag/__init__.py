@@ -1,6 +1,3 @@
-"""Confidencial RAG application package."""
+"""Confidencial RAG package."""
 
-from .state import SystemState
-
-__all__ = ["SystemState"]
-__version__ = "0.0.1"
+__version__ = "0.1.0-dev"

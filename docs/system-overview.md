@@ -1,145 +1,116 @@
-# Confidencial RAG System Overview
+# Confidencial RAG: System Overview
 
-## 1. Objective
+## Purpose
 
-Confidencial RAG is a modular Retrieval-Augmented Generation system for persistent document knowledge bases running on temporary compute such as Google Colab.
+Confidencial RAG is a modular retrieval-augmented generation system designed to use confidential document collections while preventing raw sensitive information from being sent to an external large language model.
 
-Its principal security objective is to prevent confidential values from being disclosed to an external LLM. The system retrieves relevant local document context, detects sensitive information, replaces it with reversible local tokens, sends only the sanitized question and context externally, and restores protected values in the returned answer inside the trusted environment.
+The system runs as a Python application in Google Colab and exposes a browser-based interface. Colab is treated as an ephemeral execution environment: databases, indexes, vaults, and configuration state must be explicitly loaded at startup and saved before shutdown.
 
-This is a design objective, not yet a security certification. No external-LLM path should be described as confidential until leakage tests demonstrate that the complete outbound payload is sanitized.
+## Core data flow
 
-## 2. Operating model
+1. Documents are uploaded individually or as a ZIP preserving a directory tree.
+2. Local loaders extract text, structure, and metadata.
+3. The indexing pipeline creates chunks, embeddings, document lineage, and source references.
+4. A user asks a question through the web interface.
+5. The retriever selects relevant chunks locally.
+6. The privacy gateway detects confidential entities in both the question and retrieved context.
+7. Sensitive values are replaced with stable reversible tokens.
+8. Only the sanitized request is sent to the configured external LLM.
+9. The response is returned to the confidential runtime.
+10. Tokens are restored locally and the answer is shown with document references.
 
-Google Colab provides temporary compute. The knowledge base is persistent and must be saved to and restored from storage outside the Colab runtime.
+## Trust boundaries
 
-A normal session follows this lifecycle:
+### Trusted confidential runtime
 
-```text
-OFF
-  -> STARTING
-  -> EMPTY or LOADING
-  -> READY
-  -> INDEXING and/or CHATTING
-  -> SAVING
-  -> SHUTTING_DOWN
-  -> OFF
-```
+- uploaded documents
+- extracted text and metadata
+- vector database and embeddings
+- local models
+- reversible token vault
+- original and restored responses
 
-The browser interface is served by Python running in Colab. Because a tunneled web address may be internet-accessible, the web interface is part of the attack surface and requires authentication, session controls, safe errors, and restricted file handling.
+### Public repository
 
-## 3. Trust zones
+- source code
+- documentation
+- configuration templates
+- synthetic examples and tests
 
-### Trusted processing zone
+### Untrusted external services
 
-- active Colab Python runtime;
-- document parsers and chunkers;
-- metadata and vector stores;
-- privacy detector and reversible token vault;
-- local embedding and local LLM components;
-- restoration logic;
-- encrypted persistent storage under user control.
+- external LLM providers
+- public GitHub content
+- public web tunnels
 
-### Untrusted or external zone
+External services must receive only the minimum sanitized information required for the requested operation.
 
-- external LLM providers;
-- public GitHub repository and its history;
-- public issue, PR, action, and artifact content;
-- unauthenticated web clients;
-- any storage destination that has not been explicitly trusted.
+## Application lifecycle
 
-Only an outbound request approved by the privacy gateway may cross from the trusted zone to an external LLM.
+The web interface will provide these primary operations:
 
-## 4. High-level data flow
+- Start system
+- Create or load a knowledge base
+- Upload documents or ZIP trees
+- Index new or changed documents
+- Chat with the active knowledge base
+- Inspect the exact sanitized payload before transmission
+- Save or export the active knowledge base
+- Perform a safe shutdown
 
-```text
-Documents
-  -> loader
-  -> normalized document
-  -> metadata registry
-  -> chunker
-  -> embeddings and vector index
-  -> retrieval
-  -> local privacy gateway
-  -> sanitized external request
-  -> external response
-  -> local restoration
-  -> answer with local source references
-```
+## Persistent knowledge bases
 
-Original documents, raw chunks, embeddings, metadata, token maps, and restored answers remain within the trusted zone.
+A knowledge base is a portable directory or encrypted archive containing:
 
-## 5. Modular architecture
+- metadata database
+- vector index
+- embedding and chunk records
+- document registry and lineage
+- privacy vault
+- configuration snapshot
+- non-sensitive operational statistics
 
-Each component is replaceable behind an explicit interface:
+Incremental indexing is required. Adding one document must not force a complete rebuild.
 
-- lifecycle controller;
-- storage provider;
-- backup and encryption provider;
-- document loader;
-- metadata repository;
-- chunking strategy;
-- embedding provider;
-- vector store;
-- retrieval strategy and reranker;
-- privacy detector;
-- token vault and restorer;
-- local LLM;
-- external LLM provider;
-- browser UI;
-- audit and experiment recorder.
+## Modular design
 
-The UI must call the application controller rather than directly manipulating a database or model.
+Each major capability is replaceable behind a stable interface:
 
-## 6. Knowledge-base persistence
+- document loaders
+- chunking strategies
+- embedding models
+- vector stores
+- retrieval and reranking
+- privacy detectors
+- token vaults
+- local LLMs
+- external LLM providers
+- storage backends
+- web interface
+- evaluation and leakage tests
 
-A knowledge-base export is expected to contain versioned application state such as:
+Configuration profiles will allow the same question and document set to be tested across different implementations.
 
-```text
-knowledge-base/
-├── manifest.json
-├── metadata.sqlite
-├── vector_store/
-├── privacy_vault/
-├── configuration/
-├── ingestion_registry/
-└── audit/
-```
+## Initial milestone
 
-Original documents may be included or managed separately according to configuration. Confidential exports must be encrypted. The encryption key must not be stored in the same export.
+The first working milestone will support:
 
-## 7. Incremental ingestion
+- PDF, DOCX, Markdown, QMD, HTML, JSON, and plain text
+- local metadata storage
+- local vector retrieval
+- source citations
+- save and reload of a knowledge base
+- browser chat launched from Colab
+- a mock LLM provider for tests
 
-Every source document receives a stable document identifier and content hash. The ingestion registry records its source path, version, parser, timestamps, classification, and processing status.
+The privacy gateway and external LLM connector will be integrated only after the baseline RAG lifecycle is testable.
 
-Adding one document must not require rebuilding the complete index. The system must support add, update, delete, selected re-index, and full rebuild operations.
+## Security principles
 
-## 8. Metadata and references
-
-Every retrievable chunk should retain, where available:
-
-- knowledge-base identifier;
-- document identifier and version;
-- safe display title;
-- original source reference inside the trusted zone;
-- path within an imported tree;
-- page, sheet, slide, heading, section, or paragraph;
-- extraction and ingestion timestamps;
-- parser and chunker versions;
-- content hash and parent-child relationships.
-
-Answers should cite these local references without exposing confidential filenames externally.
-
-## 9. Experimental behavior
-
-Configuration profiles allow controlled comparison of chunkers, embedding models, vector stores, retrieval methods, privacy detectors, local models, and external providers.
-
-Experiments may record counts, latency, retrieval scores, token counts, detector categories, restoration failures, and synthetic evaluation results. Raw confidential text is excluded from persistent experiment logs by default.
-
-## 10. Initial milestones
-
-1. Lifecycle controller, safe configuration, portable save/load, and web shell.
-2. Incremental ingestion for core document types with metadata and citations.
-3. Baseline local embeddings, vector retrieval, and synthetic evaluation.
-4. Privacy detector, reversible token vault, restoration, and leakage tests.
-5. External LLM adapter enabled only through the privacy gateway.
-6. Local-only answer mode and configurable experiment profiles.
+- Fail closed: if sanitization cannot be verified, do not send the request externally.
+- No secret persistence in GitHub or notebook source.
+- No raw document text in normal logs.
+- Filenames and metadata are treated as potentially confidential.
+- The user can inspect the sanitized outbound payload.
+- Backups containing confidential material should be encrypted.
+- Synthetic data is used in all public tests and examples.

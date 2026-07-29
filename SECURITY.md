@@ -1,39 +1,17 @@
 # Security Policy
 
-## Public repository assumption
+## Core rule
 
-Treat every committed file, branch, pull request, issue, action log, and artifact in this repository as public. Git history is not a secure deletion mechanism.
+Treat this repository as fully public. Never commit confidential documents, extracted text, embeddings, vector indexes, metadata databases, reversible token mappings, encryption keys, API keys, session logs, backups, or real customer examples.
 
-## Prohibited repository content
+## Secrets
 
-Do not commit or upload:
+Secrets must be entered at runtime, preferably with a hidden prompt such as `getpass`, and stored only in process memory or environment variables for the active session. Do not place secrets in notebooks, configuration files, screenshots, issues, pull requests, or logs.
 
-- confidential, personal, regulated, or customer documents;
-- API keys, passwords, access tokens, certificates, encryption keys, or recovery codes;
-- original filenames or metadata that reveal confidential activity;
-- vector stores, embeddings, metadata databases, token maps, or privacy vaults;
-- exported knowledge bases, backups, caches, logs, debug traces, or notebook outputs containing real data.
+## Data handling
 
-Use synthetic fixtures for development and testing.
-
-## Runtime secrets
-
-Secrets must be entered at runtime using hidden input or an approved secret store. They must be held only in process memory where practical, never printed, never included in exceptions, and cleared during shutdown.
-
-## Trust boundary
-
-The Colab runtime, connected storage, browser session, and local privacy components form the confidential processing environment. External LLM providers are outside that boundary. Only content that has passed the privacy policy and leakage checks may cross it.
-
-A Colab-hosted web page is not inherently local. Shared or tunneled URLs must be authenticated and considered internet-accessible.
-
-## Logging
-
-Default logs may include identifiers, counts, timings, hashes, status, and error codes. They must not include raw document text, original user questions, restored answers, confidential filenames, token maps, or secrets.
-
-## Backups
-
-Knowledge-base exports containing confidential data must be encrypted before leaving the active runtime. Encryption keys must be stored separately from encrypted backups.
+The external LLM is outside the trusted boundary. Only sanitized questions and sanitized retrieved context may be transmitted externally. Original values and reversible mappings must remain inside the confidential runtime.
 
 ## Reporting vulnerabilities
 
-Do not disclose a vulnerability with real confidential data in a public issue. Use a private communication channel with the repository owner.
+Do not open a public issue containing sensitive details. Contact the repository owner privately and provide a minimal reproduction using synthetic data.
