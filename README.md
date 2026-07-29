@@ -1,57 +1,81 @@
 # Confidencial RAG
 
-A modular confidential RAG system that sanitizes sensitive information before using an external LLM and restores it locally in the final response.
+A modular experiment intended to become a confidential Retrieval-Augmented Generation
+system for temporary runtimes such as Google Colab.
 
-> **Status:** Architecture and project skeleton under development.
+> **Warning:** This application-shell milestone is **not yet a functional confidential
+> RAG**. Do not use it with confidential data.
 
-## Purpose
+## What this milestone provides
 
-Confidencial RAG is an experimental Retrieval-Augmented Generation platform designed to run in Google Colab and expose its controls and chat interface through a Python web application. It maintains a persistent, portable knowledge base while treating every Colab runtime as temporary.
+- A strict `ApplicationController` lifecycle covering OFF, STARTING, EMPTY, LOADING,
+  READY, INDEXING, CHATTING, SAVING, SHUTTING_DOWN, and ERROR states.
+- A Gradio interface with system, synthetic knowledge-base, and mock-chat controls.
+- Content-free JSON manifests stored only in a temporary runtime directory.
+- A thin Colab launcher whose public sharing option is off by default and requires
+  explicit authentication when enabled.
+- Clear, non-crashing UI messages for expected invalid operations.
 
-The distinguishing component is a local confidentiality gateway. Retrieved context and user questions are inspected locally, sensitive values are replaced with reversible tokens, and only sanitized material may be sent to an external LLM. The returned answer is restored locally before it is shown to the user.
+It deliberately does **not** implement document ingestion or parsing, embeddings, vector
+search, real retrieval, privacy tokenization, encryption, external LLM calls, Google
+Drive, or OneDrive. Mock chat explicitly reports these limitations and sends nothing to
+an external service.
 
-## Initial goals
+## Run locally
 
-- Upload individual documents or a ZIP containing a document tree.
-- Support PDF, Microsoft Office, Markdown, QMD, HTML, JSON, YAML, XML, and text formats incrementally.
-- Preserve document, page, section, path, version, and ingestion metadata.
-- Add, update, remove, and re-index documents without rebuilding the entire knowledge base.
-- Save and restore knowledge bases between temporary Colab sessions.
-- Provide a browser-based control panel and document chat interface.
-- Keep loaders, chunkers, embeddings, vector stores, retrieval, privacy, LLM, storage, and UI components replaceable.
-- Make experiments observable without writing confidential text to logs.
+Python 3.10 or newer is required.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[ui]'
+python -m confidencial_rag.ui.gradio_app
+```
+
+The local launcher does not request a Gradio shared URL. Programmatic sharing requires
+both `username` and `password`:
+
+```python
+from confidencial_rag.ui import launch
+launch(share=True, username="choose-a-user", password="enter-at-runtime")
+```
+
+Never put credentials in source, notebooks, or runtime configuration committed to Git.
+Use [`config/default.example.yaml`](config/default.example.yaml) only as the safe
+configuration reference.
+
+## Run from Google Colab
+
+Open [`colab/confidencial_rag_launcher.ipynb`](colab/confidencial_rag_launcher.ipynb) in
+Colab and run its cells. The notebook clones or fast-forward updates the repository,
+installs the `ui` extra, and imports the packaged launcher. It asks whether sharing should
+be enabled; the default is no. If sharing is selected, it requires a username and uses
+hidden password entry. The notebook contains no application logic and has no committed
+outputs.
+
+## Architecture
+
+Gradio is a presentation adapter: callbacks invoke the existing controller and never
+access future storage, retrieval, privacy, encryption, or LLM components directly. The
+controller owns lifecycle transitions and this milestone's temporary synthetic manifest.
+The Colab notebook only bootstraps the package. See
+[`docs/application-shell.md`](docs/application-shell.md) and
+[`docs/system-overview.md`](docs/system-overview.md).
 
 ## Security boundary
 
-This repository is public and contains source code, documentation, configuration templates, tests, and synthetic examples only.
+This public repository contains source code, documentation, safe configuration templates,
+tests, and synthetic examples only. Never commit secrets, real documents, embeddings,
+vector databases, vaults, exports, runtime caches, or logs containing user content. See
+[`SECURITY.md`](SECURITY.md) for the full policy.
 
-Never commit:
+## Development
 
-- API keys, passwords, tokens, certificates, or encryption keys
-- original or processed confidential documents
-- vector databases, embeddings, metadata databases, or token vaults
-- knowledge-base exports, backups, runtime caches, or logs
-- notebook outputs containing confidential text
-
-See [SECURITY.md](SECURITY.md) and [docs/system-overview.md](docs/system-overview.md).
-
-## Planned repository layout
-
-```text
-Confidencial-RAG/
-├── colab/                 # Thin Colab launcher
-├── config/                # Safe configuration templates
-├── docs/                  # Architecture and operating documentation
-├── examples/              # Synthetic, non-confidential examples
-├── src/confidencial_rag/  # Application modules
-├── tests/                 # Unit and integration tests
-├── .gitignore
-├── pyproject.toml
-└── README.md
+```bash
+python -m pip install -e '.[dev,ui]'
+pytest
+ruff check .
 ```
 
-## Development approach
-
-The first milestone will establish lifecycle management, portable storage, document ingestion, metadata, retrieval, citations, and the browser interface. The privacy gateway will then be introduced behind explicit interfaces and validated with leakage tests before any external-LLM path is considered confidential.
-
-The project name uses the repository spelling **Confidencial RAG**. In English documentation, the intended meaning is **Confidential RAG**.
+The project name uses the repository spelling **Confidencial RAG**. In English
+documentation, the intended meaning is **Confidential RAG**.
