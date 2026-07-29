@@ -1,17 +1,43 @@
 # Security Policy
 
-## Core rule
+## Public repository assumption
 
-Treat this repository as fully public. Never commit confidential documents, extracted text, embeddings, vector indexes, metadata databases, reversible token mappings, encryption keys, API keys, session logs, backups, or real customer examples.
+Treat every committed file, branch, pull request, issue, workflow log, and artifact in this repository as public. Git history is not a secure deletion mechanism.
 
-## Secrets
+## Prohibited repository content
 
-Secrets must be entered at runtime, preferably with a hidden prompt such as `getpass`, and stored only in process memory or environment variables for the active session. Do not place secrets in notebooks, configuration files, screenshots, issues, pull requests, or logs.
+Do not commit or upload:
 
-## Data handling
+- confidential, personal, regulated, or customer documents;
+- API keys, passwords, access tokens, certificates, encryption keys, or recovery codes;
+- original filenames or metadata that reveal confidential activity;
+- vector stores, embeddings, metadata databases, token maps, or privacy vaults;
+- exported knowledge bases, backups, caches, logs, debug traces, or notebook outputs containing real data.
 
-The external LLM is outside the trusted boundary. Only sanitized questions and sanitized retrieved context may be transmitted externally. Original values and reversible mappings must remain inside the confidential runtime.
+Use synthetic fixtures for all public development and testing.
+
+## Runtime secrets
+
+Secrets must be entered at runtime using hidden input or an approved secret store. They should remain only in process memory where practical, must never be printed or included in exceptions, and must be cleared during safe shutdown.
+
+## Trust boundary
+
+The active Colab runtime, explicitly trusted connected storage, authenticated browser session, and local privacy components form the confidential processing environment. External LLM providers, public GitHub, and unauthenticated web clients are outside that boundary.
+
+Only an outbound request approved by the privacy gateway and leakage checks may cross to an external LLM. The system must fail closed when sanitization cannot be verified.
+
+A Colab-hosted web page is not inherently local. Shared or tunneled URLs must be authenticated, treated as internet-accessible, and disabled by default.
+
+## Logging and errors
+
+Default logs may contain identifiers, counts, timings, hashes, status values, and error codes. They must not contain raw document text, original questions, restored answers, confidential filenames, token maps, credentials, or full external payloads.
+
+User-facing errors must not expose filesystem paths, secrets, raw document content, or internal token mappings.
+
+## Backups
+
+Knowledge-base exports containing confidential data must be encrypted before leaving the active runtime. Encryption keys and passwords must be stored separately from encrypted backups.
 
 ## Reporting vulnerabilities
 
-Do not open a public issue containing sensitive details. Contact the repository owner privately and provide a minimal reproduction using synthetic data.
+Do not disclose vulnerabilities using real confidential data in a public issue. Contact the repository owner privately and provide a minimal reproduction using synthetic data.
