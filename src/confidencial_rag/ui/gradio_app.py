@@ -110,7 +110,13 @@ def build_interface(controller: ApplicationController | None = None):
 
 
 def launch(*, share: bool = False, username: str | None = None, password: str | None = None):
-    """Launch the UI, requiring credentials whenever a public share URL is requested."""
+    """Launch Gradio locally or through an authenticated shared URL.
+
+    ``share=False`` is the safe default for localhost use on Windows, Linux, and
+    macOS. Google Colab cannot expose that localhost page to the user's browser,
+    so its launcher explicitly opts in to ``share=True`` and supplies both
+    credentials. A Gradio shared URL should be treated as internet-accessible.
+    """
     if share and (not username or not password):
         raise ValueError("A username and password are required when sharing is enabled.")
     auth = (username, password) if username and password else None

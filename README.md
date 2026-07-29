@@ -32,8 +32,10 @@ python -m pip install -e '.[ui]'
 python -m confidencial_rag.ui.gradio_app
 ```
 
-The local launcher does not request a Gradio shared URL. Programmatic sharing requires
-both `username` and `password`:
+The local launcher uses `share=False`: Gradio's localhost mode is appropriate when the
+browser and application run on the same Windows, Linux, or macOS computer. Local users
+are not forced to create a public tunnel. Programmatic sharing requires both `username`
+and `password`:
 
 ```python
 from confidencial_rag.ui import launch
@@ -48,10 +50,15 @@ configuration reference.
 
 Open [`colab/confidencial_rag_launcher.ipynb`](colab/confidencial_rag_launcher.ipynb) in
 Colab and run its cells. The notebook clones or fast-forward updates the repository,
-installs the `ui` extra, and imports the packaged launcher. It asks whether sharing should
-be enabled; the default is no. If sharing is selected, it requires a username and uses
-hidden password entry. The notebook contains no application logic and has no committed
-outputs.
+installs the `ui` extra, and imports the packaged launcher. A Colab runtime's localhost
+page is not directly reachable from the user's browser, so the browser UI requires a
+temporary Gradio shared URL. The notebook asks explicitly whether to create that URL and
+defaults to no. If declined, it reports that the application was not started and does not
+call the launcher. If accepted, it requires a username and a hidden, non-empty password.
+
+Treat the temporary URL as internet-accessible even though it is authenticated. Do not
+share it, and use only synthetic data with this milestone. The notebook neither prints
+nor persists the password, contains no application logic, and has no committed outputs.
 
 ## Architecture
 

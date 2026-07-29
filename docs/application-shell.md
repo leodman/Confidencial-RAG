@@ -11,5 +11,12 @@ service interfaces; they must not be called directly from Gradio or the Colab no
 The notebook remains a bootstrapper that updates the repository, installs the `ui` extra,
 and chooses explicit launch settings.
 
+Gradio localhost mode (`share=False`) is the safe, appropriate default for execution on a
+local Windows, Linux, or macOS machine. Colab is different: its localhost page is not
+directly reachable from the user's browser. The Colab launcher therefore either stops
+without launching or, after explicit opt-in, creates a temporary shared URL with a
+required username and hidden password. That URL must be treated as internet-accessible.
+Even with authentication, this shell must be used only with synthetic data.
+
 The safe configuration reference remains `config/default.example.yaml`. Runtime secrets
 and runtime configuration are intentionally neither generated nor committed.
