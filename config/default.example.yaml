@@ -1,0 +1,49 @@
+system:
+  name: "Confidencial RAG"
+  environment: "development"
+  confidential_mode: true
+
+runtime:
+  workspace: "/content/confidencial-rag-runtime"
+  clear_secrets_on_shutdown: true
+  raw_text_logging: false
+
+ui:
+  provider: "gradio"
+  require_authentication: true
+  share_url: false
+
+storage:
+  provider: "local"
+  encrypted_backups: true
+  include_original_documents: false
+
+metadata:
+  provider: "sqlite"
+
+chunking:
+  strategy: "structure_aware"
+  chunk_size: 700
+  overlap: 100
+
+embeddings:
+  provider: "sentence_transformers"
+  model: "BAAI/bge-small-en-v1.5"
+
+vector_store:
+  provider: "faiss"
+
+retrieval:
+  strategy: "similarity"
+  top_k: 8
+  reranking: false
+
+privacy:
+  enabled: true
+  reversible_tokens: true
+  allow_external_raw_text: false
+  persist_raw_debug_data: false
+
+llm:
+  provider: "mock"
+  local_guardian: true
