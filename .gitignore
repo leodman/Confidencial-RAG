@@ -1,20 +1,29 @@
-# Secrets
+# Secrets and local configuration
 .env
 .env.*
 !.env.example
 *.key
 *.pem
 *.p12
+*.pfx
 secrets/
+credentials/
+config/runtime.yaml
 
-# Confidential or generated data
+# Confidential and runtime data
 documents/
 knowledge_bases/
 databases/
+vector_stores/
+embeddings/
 vault/
 backups/
+exports/
 logs/
+cache/
 temp/
+tmp/
+runtime/
 uploads/
 *.sqlite
 *.sqlite3
@@ -22,16 +31,30 @@ uploads/
 *.faiss
 *.index
 
+# Notebook outputs and local notebooks
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
+dist/
+build/
 
-# Notebooks and local tooling
-.ipynb_checkpoints/
+# Editors and operating systems
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local models
+models/
+*.gguf
+*.safetensors
+*.bin
