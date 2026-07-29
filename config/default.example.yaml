@@ -40,10 +40,16 @@ retrieval:
 
 privacy:
   enabled: true
+  fail_closed: true
   reversible_tokens: true
   allow_external_raw_text: false
+  show_sanitized_payload: true
   persist_raw_debug_data: false
 
 llm:
   provider: "mock"
   local_guardian: true
+
+logging:
+  level: "INFO"
+  include_raw_text: false
