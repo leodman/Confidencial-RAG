@@ -47,6 +47,10 @@ def test_launcher_installs_with_kernel_interpreter_and_verifies_import() -> None
         for command in pip_commands
         for element in command.elts
     )
+
+    assert "src_path = str(repo / 'src')" in source
+    assert "sys.path.insert(0, src_path)" in source
+    assert source.index("sys.path.insert(0, src_path)") < source.index("import confidencial_rag")
     assert "confidencial_rag.__file__" in source
 
 
