@@ -25,4 +25,7 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py310"
 [tool.ruff.lint]
-ignore = ["E401", "E402", "E701", "E702", "E703", "F401", "F811"]
+[tool.ruff.lint.per-file-ignores]
+"colab/*.ipynb" = ["E402", "F811"]
+"src/confidencial_rag/ui/gradio_app.py" = ["E701", "E702"]
+"tests/*.py" = ["E701", "E702"]

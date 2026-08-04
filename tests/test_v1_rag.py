@@ -78,3 +78,102 @@ def test_colab_notebook_static():
     for needle in ['sys.executable','sys.path.insert','import confidencial_rag','getpass','share=True','auth']:
         assert needle in src
     assert 'sk-' not in src
+
+
+def test_transactional_ingestion_rolls_back_invalid_document(tmp_path):
+    controller = ApplicationController(runtime_dir=tmp_path)
+    controller.start()
+    controller.create_knowledge_base("rollback")
+    good = write(tmp_path / "good.txt", "Aurora rollback baseline evidence.")
+    controller.ingest_files([good])
+    before_docs = {key: value.to_dict() for key, value in controller.kb.documents.items()}
+    before_chunks = {key: value.to_dict() for key, value in controller.kb.chunks.items()}
+    before_vectors = list(controller.vector_store.chunk_ids)
+    bad = write(tmp_path / "bad.exe", "not supported")
+    try:
+        controller.ingest_files([write(tmp_path / "second.txt", "valid second"), bad])
+        assert False
+    except KnowledgeBaseError:
+        pass
+    assert {key: value.to_dict() for key, value in controller.kb.documents.items()} == before_docs
+    assert {key: value.to_dict() for key, value in controller.kb.chunks.items()} == before_chunks
+    assert controller.vector_store.chunk_ids == before_vectors
+
+
+class FailingEmbedding:
+    provider_name = "hashing"
+    model_name = "sha256-hashing-test-v1"
+    dimension = 384
+
+    def __init__(self):
+        self.calls = 0
+
+    def embed(self, texts):
+        self.calls += 1
+        if self.calls > 1:
+            raise RuntimeError("synthetic embedding failure")
+        return [[1.0] + [0.0] * 383 for _ in texts]
+
+
+def test_transactional_ingestion_rolls_back_embedding_failure(tmp_path):
+    provider = FailingEmbedding()
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=provider)
+    controller.start()
+    controller.create_knowledge_base("rollback_embed")
+    controller.ingest_files([write(tmp_path / "first.txt", "baseline")])
+    before = controller.kb.manifest()
+    try:
+        controller.ingest_files([write(tmp_path / "second.txt", "will fail")])
+        assert False
+    except KnowledgeBaseError:
+        pass
+    assert controller.kb.manifest()["document_count"] == before["document_count"]
+    assert controller.kb.manifest()["chunk_count"] == before["chunk_count"]
+
+
+def test_single_privacy_session_avoids_external_payload_leakage(tmp_path):
+    controller = ApplicationController(runtime_dir=tmp_path)
+    controller.start()
+    controller.create_knowledge_base("privacy")
+    doc = write(
+        tmp_path / "acme_project.txt",
+        "AlphaBeta owner jane@example.com and backup jane@example.com coordinate with john@example.com at 10.1.2.3.",
+    )
+    controller.ingest_files([doc])
+    fake = FakeExternal()
+    result = controller.ask(
+        "Ask jane@example.com about Alpha and AlphaBeta from john@example.com",
+        mode="External, confidential",
+        minimum_similarity=0.0,
+        custom_terms="AlphaBeta\nAlpha",
+        external_provider=fake,
+    )
+    outbound = repr(fake.payload)
+    assert "jane@example.com" not in outbound
+    assert "john@example.com" not in outbound
+    assert "AlphaBeta" not in outbound
+    assert "Alpha" not in outbound
+    assert "10.1.2.3" not in outbound
+    assert result["privacy_report"]["EMAIL"] >= 3
+    assert result["privacy_report"]["CUSTOM"] >= 2
+
+
+def test_pdf_page_metadata_is_structured(tmp_path):
+    pytest = __import__("pytest")
+    fpdf = pytest.importorskip("fpdf")
+    pdf_path = tmp_path / "pages.pdf"
+    pdf = fpdf.FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
+    pdf.cell(0, 10, "First page unrelated.")
+    pdf.add_page()
+    pdf.cell(0, 10, "Second page says Aurora page-aware citation.")
+    pdf.output(str(pdf_path))
+    controller = ApplicationController(runtime_dir=tmp_path)
+    controller.start()
+    controller.create_knowledge_base("pdfpages")
+    controller.ingest_files([pdf_path], chunk_size=200, chunk_overlap=0)
+    page_numbers = {chunk.page_number for chunk in controller.kb.chunks.values()}
+    assert page_numbers == {1, 2}
+    answer = controller.ask("Where is page-aware citation?", minimum_similarity=0.0)
+    assert any(citation["page_or_section"] == "page 2" for citation in answer["citations"])

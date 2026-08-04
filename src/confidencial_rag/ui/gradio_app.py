@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-from typing import Any
 from ..controller import ApplicationController, InvalidStateTransition, KnowledgeBaseError
 class UIActions:
     def __init__(self, controller: ApplicationController): self.controller=controller
@@ -18,7 +17,7 @@ class UIActions:
         try: p=self.controller.export_knowledge_base(); return (*self.status_values('Success: Knowledge base exported.'), str(p))
         except Exception as e: return (*self.status_values('Error: '+str(e)), None)
     def ingest(self,files,zip_file,chunk_size,overlap):
-        selected=[]; selected += files or [];
+        selected=[]; selected += files or []
         if zip_file: selected.append(zip_file)
         try: report=self.controller.ingest_files(selected,int(chunk_size),int(overlap)); return (*self.status_values('Success: Documents indexed.'), report)
         except Exception as e: return (*self.status_values('Error: '+str(e)), [])
