@@ -1,36 +1,28 @@
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
-
 [project]
 name = "confidencial-rag"
-version = "0.0.1"
-description = "Modular confidential RAG experimentation platform for temporary runtimes such as Google Colab."
+version = "0.1.0"
+description = "Experimental modular confidential RAG for temporary runtimes such as Google Colab."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "Leo Manzewitsch" }]
-dependencies = [
-  "pydantic>=2.7,<3",
-  "PyYAML>=6.0,<7",
-]
-
+dependencies = ["pydantic>=2.7,<3", "PyYAML>=6.0,<7", "numpy>=1.24"]
 [project.optional-dependencies]
-dev = [
-  "pytest>=8,<9",
-  "ruff>=0.5,<1",
-]
-ui = [
-  "gradio>=5,<6",
-]
-
+ui = ["gradio>=5,<6"]
+rag = ["sentence-transformers>=3,<6", "openai>=1.40,<2"]
+documents = ["pypdf>=4,<7", "python-docx>=1.1,<2"]
+colab = ["confidencial-rag[ui,rag,documents]"]
+dev = ["pytest>=8,<9", "ruff>=0.5,<1", "fpdf2>=2.7,<3"]
 [tool.setuptools.packages.find]
 where = ["src"]
-
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+[tool.ruff.lint]
+ignore = ["E401", "E402", "E701", "E702", "E703", "F401", "F811"]

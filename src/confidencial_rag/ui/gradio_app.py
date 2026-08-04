@@ -1,127 +1,52 @@
-"""Gradio application shell backed exclusively by ``ApplicationController``."""
-
 from __future__ import annotations
-
+import json
 from typing import Any
-
 from ..controller import ApplicationController, InvalidStateTransition, KnowledgeBaseError
-
-
 class UIActions:
-    """Small callback adapter that converts controller exceptions into UI messages."""
-
-    def __init__(self, controller: ApplicationController) -> None:
-        self.controller = controller
-
-    def snapshot(self, message: str) -> tuple[str, str, str]:
-        return (
-            self.controller.state.value.upper(),
-            self.controller.active_knowledge_base or "None",
-            message,
-        )
-
-    def _run(self, action: Any, success: str) -> tuple[str, str, str]:
+    def __init__(self, controller: ApplicationController): self.controller=controller
+    def status_values(self,msg=''):
+        s=self.controller.status(); return (s['state'].upper(),s['active_knowledge_base'] or 'None',s['embedding_model'],s['document_count'],s['chunk_count'],s['vector_count'],s['last_operation'],msg)
+    def _run(self,fn,ok):
+        try: fn(); return self.status_values('Success: '+ok)
+        except (InvalidStateTransition,KnowledgeBaseError,ValueError) as e: return self.status_values('Error: '+str(e))
+    def start(self): return self._run(self.controller.start,'System started.')
+    def shutdown(self): return self._run(self.controller.shutdown,'System shut down safely.')
+    def create(self,name): return self._run(lambda:self.controller.create_knowledge_base(name),'Knowledge base created.')
+    def import_kb(self,file): return self._run(lambda:self.controller.import_knowledge_base(getattr(file,'name',file)),'Knowledge base imported.')
+    def save(self): return self._run(self.controller.save_knowledge_base,'Knowledge base saved.')
+    def export(self):
+        try: p=self.controller.export_knowledge_base(); return (*self.status_values('Success: Knowledge base exported.'), str(p))
+        except Exception as e: return (*self.status_values('Error: '+str(e)), None)
+    def ingest(self,files,zip_file,chunk_size,overlap):
+        selected=[]; selected += files or [];
+        if zip_file: selected.append(zip_file)
+        try: report=self.controller.ingest_files(selected,int(chunk_size),int(overlap)); return (*self.status_values('Success: Documents indexed.'), report)
+        except Exception as e: return (*self.status_values('Error: '+str(e)), [])
+    def chat(self,q,mode,top_k,minsim,terms,key,model,confirm):
         try:
-            action()
-            return self.snapshot(f"Success: {success}")
-        except (InvalidStateTransition, KnowledgeBaseError) as exc:
-            return self.snapshot(f"Error: {exc}")
+            r=self.controller.ask(q,mode,int(top_k),float(minsim),terms,key,model,bool(confirm))
+            return (r['answer'],json.dumps(r['citations'],indent=2),json.dumps(r['evidence'],indent=2),json.dumps(r['privacy_report'],indent=2),r['sanitized_preview'], 'Yes' if r['external_called'] else 'No', *self.status_values('Success: Answer generated.'))
+        except Exception as e: return ('','','','{}','', 'No', *self.status_values('Error: '+str(e)))
 
-    def start(self) -> tuple[str, str, str]:
-        return self._run(self.controller.start, "System started.")
-
-    def shutdown(self) -> tuple[str, str, str]:
-        return self._run(self.controller.shutdown, "System shut down safely.")
-
-    def create(self, name: str) -> tuple[str, str, str]:
-        return self._run(
-            lambda: self.controller.create_knowledge_base(name),
-            f"Knowledge base '{name.strip()}' created.",
-        )
-
-    def load(self, name: str) -> tuple[str, str, str]:
-        return self._run(
-            lambda: self.controller.load_knowledge_base(name),
-            f"Knowledge base '{name.strip()}' loaded.",
-        )
-
-    def save(self) -> tuple[str, str, str]:
-        return self._run(self.controller.save_knowledge_base, "Knowledge base manifest saved.")
-
-    def chat(self, question: str) -> tuple[str, str, str, str]:
-        try:
-            answer = self.controller.mock_chat(question)
-            state, active, _ = self.snapshot("")
-            return answer, state, active, "Success: Mock answer generated locally."
-        except (InvalidStateTransition, KnowledgeBaseError) as exc:
-            state, active, _ = self.snapshot("")
-            return "", state, active, f"Error: {exc}"
-
-
-def build_interface(controller: ApplicationController | None = None):
-    """Build the Gradio Blocks interface without starting a web server."""
+def build_interface(controller: ApplicationController|None=None):
     import gradio as gr
-
-    actions = UIActions(controller or ApplicationController())
-    initial_state, initial_kb, initial_status = actions.snapshot("System is off.")
-
-    with gr.Blocks(title="Confidencial RAG") as app:
-        gr.Markdown(
-            "# Confidencial RAG — application shell\n"
-            "This milestone uses synthetic manifests and mock chat only; it is not a functional RAG."
-        )
-        with gr.Tab("System"):
-            state_display = gr.Textbox(
-                label="Current system state", value=initial_state, interactive=False
-            )
-            kb_display = gr.Textbox(
-                label="Active knowledge base", value=initial_kb, interactive=False
-            )
-            start_button = gr.Button("Start System", variant="primary")
-            shutdown_button = gr.Button("Safe Shutdown")
-
-        with gr.Tab("Knowledge Base"):
-            kb_name = gr.Textbox(label="Knowledge-base name", placeholder="test-kb")
-            create_button = gr.Button("Create")
-            load_button = gr.Button("Load")
-            save_button = gr.Button("Save")
-            status_display = gr.Textbox(
-                label="Operation status", value=initial_status, interactive=False
-            )
-
-        with gr.Tab("Chat"):
-            question = gr.Textbox(label="Question")
-            send_button = gr.Button("Send", variant="primary")
-            answer = gr.Textbox(label="Mock answer", interactive=False)
-
-        common_outputs = [state_display, kb_display, status_display]
-        start_button.click(actions.start, outputs=common_outputs)
-        shutdown_button.click(actions.shutdown, outputs=common_outputs)
-        create_button.click(actions.create, inputs=kb_name, outputs=common_outputs)
-        load_button.click(actions.load, inputs=kb_name, outputs=common_outputs)
-        save_button.click(actions.save, outputs=common_outputs)
-        send_button.click(
-            actions.chat,
-            inputs=question,
-            outputs=[answer, state_display, kb_display, status_display],
-        )
-
+    actions=UIActions(controller or ApplicationController()); init=actions.status_values('System is off.')
+    with gr.Blocks(title='Confidencial RAG') as app:
+        gr.Markdown('# Confidencial RAG Version 1\nExperimental local RAG with a fail-closed confidential external mode. Not production security.')
+        with gr.Tab('System'):
+            state=gr.Textbox(label='System state',value=init[0],interactive=False); kb=gr.Textbox(label='Active knowledge base',value=init[1],interactive=False); model=gr.Textbox(label='Embedding model',value=init[2],interactive=False); docs=gr.Number(label='Documents',value=init[3],interactive=False); chunks=gr.Number(label='Chunks',value=init[4],interactive=False); vectors=gr.Number(label='Vectors',value=init[5],interactive=False); last=gr.Textbox(label='Last operation',value=init[6],interactive=False); status=gr.Textbox(label='Status',value=init[7],interactive=False); gr.Button('Start System',variant='primary').click(actions.start,outputs=[state,kb,model,docs,chunks,vectors,last,status]); gr.Button('Safe Shutdown').click(actions.shutdown,outputs=[state,kb,model,docs,chunks,vectors,last,status])
+        outs=[state,kb,model,docs,chunks,vectors,last,status]
+        with gr.Tab('Knowledge Base'):
+            name=gr.Textbox(label='Knowledge-base name',value='demo_kb'); gr.Button('Create knowledge base').click(actions.create,inputs=name,outputs=outs); import_file=gr.File(label='Upload knowledge-base ZIP'); gr.Button('Import knowledge base').click(actions.import_kb,inputs=import_file,outputs=outs); gr.Button('Save').click(actions.save,outputs=outs); download=gr.File(label='Download exported ZIP'); gr.Button('Export ZIP').click(actions.export,outputs=outs+[download])
+        with gr.Tab('Documents'):
+            files=gr.File(label='Upload documents',file_count='multiple'); zf=gr.File(label='Upload ZIP'); cs=gr.Slider(100,4000,value=1000,step=50,label='Chunk size'); ov=gr.Slider(0,1000,value=150,step=10,label='Chunk overlap'); table=gr.JSON(label='Document indexing report'); gr.Button('Index uploaded files',variant='primary').click(actions.ingest,inputs=[files,zf,cs,ov],outputs=outs+[table])
+        with gr.Tab('Chat'):
+            q=gr.Textbox(label='Question'); mode=gr.Radio(['Local only','External, confidential','External, non-confidential test mode'],value='Local only',label='Answer mode'); top=gr.Slider(1,20,value=5,step=1,label='Top K'); ms=gr.Slider(0,1,value=0.1,step=.01,label='Minimum relevance'); terms=gr.Textbox(label='Additional protected terms (one per line)',lines=4); key=gr.Textbox(label='Optional API key',type='password'); emodel=gr.Textbox(label='External model',value='gpt-4o-mini'); confirm=gr.Checkbox(label='I understand non-confidential test mode may send raw text externally.'); ans=gr.Textbox(label='Grounded answer',lines=8); cites=gr.Code(label='Citations'); ev=gr.Code(label='Retrieved evidence'); pr=gr.Code(label='Privacy report'); prev=gr.Textbox(label='Sanitized-request preview (collapsed by default)',lines=6,visible=True); called=gr.Textbox(label='External provider called?',interactive=False); gr.Button('Send',variant='primary').click(actions.chat,inputs=[q,mode,top,ms,terms,key,emodel,confirm],outputs=[ans,cites,ev,pr,prev,called]+outs); gr.Button('Clear chat').click(lambda:('','','','{}','','No'),outputs=[ans,cites,ev,pr,prev,called])
+        with gr.Tab('Settings'):
+            gr.Markdown('Safe defaults: chunk size 1000, overlap 150, top-k 5, minimum similarity 0.10, local-only answer mode. Upload limits are enforced by controller configuration in Version 1.')
     return app
 
-
-def launch(*, share: bool = False, username: str | None = None, password: str | None = None):
-    """Launch Gradio locally or through an authenticated shared URL.
-
-    ``share=False`` is the safe default for localhost use on Windows, Linux, and
-    macOS. Google Colab cannot expose that localhost page to the user's browser,
-    so its launcher explicitly opts in to ``share=True`` and supplies both
-    credentials. A Gradio shared URL should be treated as internet-accessible.
-    """
-    if share and (not username or not password):
-        raise ValueError("A username and password are required when sharing is enabled.")
-    auth = (username, password) if username and password else None
-    return build_interface().launch(share=share, auth=auth)
-
-
-if __name__ == "__main__":
-    launch()
+def launch(*,share=False,username=None,password=None):
+    if share and (not username or not password): raise ValueError('A username and password are required when sharing is enabled.')
+    return build_interface().launch(share=share,auth=(username,password) if username and password else None)
+if __name__=='__main__': launch()

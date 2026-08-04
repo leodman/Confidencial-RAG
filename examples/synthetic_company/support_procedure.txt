@@ -1,0 +1,1 @@
+When Aurora Segment alarms occur, fictional operators open a Sev-2 ticket and notify the Fictional Platform Team.
