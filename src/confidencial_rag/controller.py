@@ -9,21 +9,14 @@ from threading import RLock
 from typing import Any
 
 from .models import DocumentRecord, KnowledgeBase, sha256_bytes, stable_id, utcnow
-from .rag_services import (
-    DocumentLoader,
-    ExtractiveLLM,
-    LocalVectorStore,
-    OpenAIProvider,
-    PrivacyGateway,
-    RAGError,
-    RecursiveChunker,
-    SafeZip,
-    SentenceTransformersEmbeddingProvider,
-    clone_kb,
-    load_package,
-    replacement_chunk,
-    save_package,
-)
+from .chunking.base import RecursiveChunker
+from .embeddings.sentence_transformers import SentenceTransformersEmbeddingProvider
+from .ingestion.base import DocumentLoader, RAGError, SUPPORTED_EXTENSIONS
+from .ingestion.zip_validator import SafeZip
+from .llm.base import ExtractiveLLM, OpenAIProvider
+from .privacy.base import PrivacyGateway
+from .storage.base import clone_kb, load_package, replacement_chunk, save_package
+from .vector_store.base import LocalVectorStore
 from .state import SystemState
 
 
@@ -259,14 +252,15 @@ class ApplicationController:
             total += size
             if size > 52428800 or total > 524288000:
                 raise KnowledgeBaseError("Uploaded files exceed configured size limits.")
-            if path.suffix.lower() == ".zip":
+            suffix = path.suffix.lower()
+            if suffix == ".zip":
                 expanded, staging = SafeZip().expand(path)
                 self._staging_dirs.append(staging)
                 paths.extend(expanded)
-            elif path.suffix.lower() in DocumentLoader.__module__ and False:
+            elif suffix in SUPPORTED_EXTENSIONS:
                 paths.append(path)
             else:
-                paths.append(path)
+                raise KnowledgeBaseError("Unsupported file type.")
         return paths
 
     def _stage_documents(

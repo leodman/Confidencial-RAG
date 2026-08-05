@@ -2,7 +2,11 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 import json
 from confidencial_rag.controller import ApplicationController, KnowledgeBaseError
-from confidencial_rag.rag_services import PrivacyGateway, SafeZip, RAGError, RecursiveChunker
+from confidencial_rag.chunking.base import RecursiveChunker
+from confidencial_rag.embeddings.sentence_transformers import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
+from confidencial_rag.ingestion.base import RAGError
+from confidencial_rag.ingestion.zip_validator import SafeZip
+from confidencial_rag.privacy.base import PrivacyGateway
 from confidencial_rag.models import DocumentRecord
 
 class FakeExternal:
@@ -24,17 +28,17 @@ def make_docx(path: Path, text: str) -> Path:
     return path
 
 def test_ingestion_retrieval_export_import_roundtrip(tmp_path):
-    c=ApplicationController(runtime_dir=tmp_path); c.start(); c.create_knowledge_base('demo')
+    c=ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider()); c.start(); c.create_knowledge_base('demo')
     docs=[write(tmp_path/'network_policy.md','# Security Architecture\nAurora Segment keeps audit logs for 180 days.'), write(tmp_path/'support.txt','Support for Aurora Segment uses Sev-2 tickets.')]
     report=c.ingest_files(docs); assert sum(r.get('chunks',0) for r in report) >= 2
     ans=c.ask('How long are Aurora audit logs kept?', minimum_similarity=0.0)
     assert '180 days' in ans['answer']; assert ans['citations']; assert ans['external_called'] is False
-    pkg=c.export_knowledge_base(tmp_path/'demo.zip'); c2=ApplicationController(runtime_dir=tmp_path/'r2'); c2.start(); c2.import_knowledge_base(pkg)
+    pkg=c.export_knowledge_base(tmp_path/'demo.zip'); c2=ApplicationController(runtime_dir=tmp_path/'r2', embedding_provider=HashEmbeddingProvider()); c2.start(); c2.import_knowledge_base(pkg)
     ans2=c2.ask('How long are Aurora audit logs kept?', minimum_similarity=0.0)
     assert '180 days' in ans2['answer']
 
 def test_loaders_and_duplicates_and_docx_example(tmp_path):
-    c=ApplicationController(runtime_dir=tmp_path); c.start(); c.create_knowledge_base('kb')
+    c=ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider()); c.start(); c.create_knowledge_base('kb')
     files=[write(tmp_path/'a.txt','alpha'),write(tmp_path/'b.qmd','# H\nbeta'),write(tmp_path/'c.html','<b>gamma</b>'),write(tmp_path/'d.json','{"delta": 1}'),write(tmp_path/'e.csv','name,value\nepsilon,2'),make_docx(tmp_path/'customer_requirements.docx', 'The fictional customer requires Aurora Segment recovery within four hours.')]
     rep=c.ingest_files(files); assert len(rep)==6
     dup=c.ingest_files([files[0]])[0]; assert dup['status']=='duplicate'
@@ -65,7 +69,7 @@ def test_privacy_gateway_and_confidential_external(tmp_path):
     g=PrivacyGateway(); s,v,r=g.sanitize('Email jane@example.com at 10.0.0.1 about Alpha AlphaBeta', ['AlphaBeta','Alpha'])
     assert 'jane@example.com' not in s and '<EMAIL_0001>' in s and '<IP_0001>' in s and r['CUSTOM']==2
     assert g.restore(s,v).startswith('Email jane@example.com')
-    c=ApplicationController(runtime_dir=tmp_path); c.start(); c.create_knowledge_base('kb'); c.ingest_files([write(tmp_path/'p.txt','Aurora contact jane@example.com for help.')])
+    c=ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider()); c.start(); c.create_knowledge_base('kb'); c.ingest_files([write(tmp_path/'p.txt','Aurora contact jane@example.com for help.')])
     fake=FakeExternal(); res=c.ask('Who helps jane@example.com?', mode='External, confidential', minimum_similarity=0.0, external_provider=fake)
     assert fake.called and res['external_called'] and 'jane@example.com' in res['answer']
     assert 'jane@example.com' not in fake.payload[0] and all('jane@example.com' not in t for t in fake.payload[1])
@@ -81,7 +85,7 @@ def test_colab_notebook_static():
 
 
 def test_transactional_ingestion_rolls_back_invalid_document(tmp_path):
-    controller = ApplicationController(runtime_dir=tmp_path)
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider())
     controller.start()
     controller.create_knowledge_base("rollback")
     good = write(tmp_path / "good.txt", "Aurora rollback baseline evidence.")
@@ -132,7 +136,7 @@ def test_transactional_ingestion_rolls_back_embedding_failure(tmp_path):
 
 
 def test_single_privacy_session_avoids_external_payload_leakage(tmp_path):
-    controller = ApplicationController(runtime_dir=tmp_path)
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider())
     controller.start()
     controller.create_knowledge_base("privacy")
     doc = write(
@@ -169,7 +173,7 @@ def test_pdf_page_metadata_is_structured(tmp_path):
     pdf.add_page()
     pdf.cell(0, 10, "Second page says Aurora page-aware citation.")
     pdf.output(str(pdf_path))
-    controller = ApplicationController(runtime_dir=tmp_path)
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider())
     controller.start()
     controller.create_knowledge_base("pdfpages")
     controller.ingest_files([pdf_path], chunk_size=200, chunk_overlap=0)
@@ -177,3 +181,30 @@ def test_pdf_page_metadata_is_structured(tmp_path):
     assert page_numbers == {1, 2}
     answer = controller.ask("Where is page-aware citation?", minimum_similarity=0.0)
     assert any(citation["page_or_section"] == "page 2" for citation in answer["citations"])
+
+
+
+def test_real_sentence_transformers_export_import_requery(tmp_path):
+    pytest = __import__("pytest")
+    pytest.importorskip("sentence_transformers")
+    provider = SentenceTransformersEmbeddingProvider()
+    vectors = provider.embed(["Aurora integration evidence", "unrelated synthetic text"])
+    assert len(vectors) == 2
+    assert len(vectors[0]) == provider.dimension
+    assert provider.provider_name == "sentence_transformers"
+
+    controller = ApplicationController(runtime_dir=tmp_path / "runtime1", embedding_provider=provider)
+    controller.start()
+    controller.create_knowledge_base("real_embeddings")
+    controller.ingest_files([write(tmp_path / "real.txt", "Aurora integration evidence requires seven day retention.")])
+    package = controller.export_knowledge_base(tmp_path / "real_embeddings.zip")
+    controller.shutdown()
+
+    fresh_provider = SentenceTransformersEmbeddingProvider()
+    fresh_controller = ApplicationController(runtime_dir=tmp_path / "runtime2", embedding_provider=fresh_provider)
+    fresh_controller.start()
+    fresh_controller.import_knowledge_base(package)
+    answer = fresh_controller.ask("What retention does Aurora integration evidence require?", minimum_similarity=0.0)
+    assert answer["citations"]
+    assert "real.txt" == answer["citations"][0]["filename"]
+    fresh_controller.shutdown()
