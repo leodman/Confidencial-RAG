@@ -1,6 +1,10 @@
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
+import builtins
 import json
+import sys
+
+import pytest
 from confidencial_rag.controller import ApplicationController, KnowledgeBaseError
 from confidencial_rag.chunking.base import RecursiveChunker
 from confidencial_rag.embeddings.sentence_transformers import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
@@ -79,7 +83,7 @@ def test_colab_notebook_static():
     assert all(c.get('outputs',[])==[] for c in nb['cells'] if c['cell_type']=='code')
     assert all(c.get('execution_count') is None for c in nb['cells'] if c['cell_type']=='code')
     src='\n'.join(''.join(c['source']) for c in nb['cells'])
-    for needle in ['sys.executable','sys.path.insert','import confidencial_rag','getpass','share=True','auth']:
+    for needle in ['sys.executable','sys.path.insert','import confidencial_rag','getpass','share=True','auth','GIT_REF','FETCH_HEAD','rev-parse']:
         assert needle in src
     assert 'sk-' not in src
 
@@ -184,14 +188,14 @@ def test_pdf_page_metadata_is_structured(tmp_path):
 
 
 
+@pytest.mark.integration
 def test_real_sentence_transformers_export_import_requery(tmp_path):
-    pytest = __import__("pytest")
-    pytest.importorskip("sentence_transformers")
     provider = SentenceTransformersEmbeddingProvider()
     vectors = provider.embed(["Aurora integration evidence", "unrelated synthetic text"])
     assert len(vectors) == 2
     assert len(vectors[0]) == provider.dimension
     assert provider.provider_name == "sentence_transformers"
+    assert provider.model_name == "sentence-transformers/all-MiniLM-L6-v2"
 
     controller = ApplicationController(runtime_dir=tmp_path / "runtime1", embedding_provider=provider)
     controller.start()
@@ -208,3 +212,95 @@ def test_real_sentence_transformers_export_import_requery(tmp_path):
     assert answer["citations"]
     assert "real.txt" == answer["citations"][0]["filename"]
     fresh_controller.shutdown()
+
+
+
+def test_missing_sentence_transformers_raises_clear_error(monkeypatch):
+    real_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "sentence_transformers" or name.startswith("sentence_transformers."):
+            raise ImportError("synthetic missing dependency")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    provider = SentenceTransformersEmbeddingProvider()
+    try:
+        provider.embed(["synthetic text"])
+        assert False
+    except RAGError as exc:
+        assert "sentence-transformers is required" in str(exc)
+
+
+def test_sentence_transformers_model_load_failure_raises_clear_error(monkeypatch):
+    class FailingSentenceTransformer:
+        def __init__(self, model_name):
+            raise RuntimeError(f"cannot load {model_name}")
+
+    class FakeModule:
+        SentenceTransformer = FailingSentenceTransformer
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", FakeModule())
+    provider = SentenceTransformersEmbeddingProvider()
+    try:
+        provider.embed(["synthetic text"])
+        assert False
+    except RAGError as exc:
+        assert "embedding model could not be loaded" in str(exc)
+
+
+def test_failed_embedding_creates_no_package(tmp_path):
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=FailingEmbedding())
+    controller.start()
+    controller.create_knowledge_base("no_package")
+    controller.ingest_files([write(tmp_path / "first.txt", "baseline")])
+    package = tmp_path / "no_package.zip"
+    try:
+        controller.ingest_files([write(tmp_path / "second.txt", "will fail")])
+        assert False
+    except KnowledgeBaseError:
+        pass
+    assert not package.exists()
+
+
+def test_hashing_manifest_never_claims_minilm(tmp_path):
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider())
+    controller.start()
+    manifest = controller.create_knowledge_base("hash_manifest")
+    assert manifest["embedding_provider"] == "hashing"
+    assert manifest["embedding_model"] == "sha256-hashing-test-v1"
+    assert manifest["embedding_model"] != "sentence-transformers/all-MiniLM-L6-v2"
+    controller.ingest_files([write(tmp_path / "hash.txt", "hashing synthetic evidence")])
+    package = controller.export_knowledge_base(tmp_path / "hash_manifest.zip")
+    import zipfile
+
+    with zipfile.ZipFile(package) as archive:
+        exported_manifest = json.loads(archive.read("manifest.json"))
+    assert exported_manifest["embedding_provider"] == "hashing"
+    assert exported_manifest["embedding_model"] == "sha256-hashing-test-v1"
+
+
+def test_import_rejects_provider_model_and_dimension_mismatch(tmp_path):
+    controller = ApplicationController(runtime_dir=tmp_path, embedding_provider=HashEmbeddingProvider())
+    controller.start()
+    controller.create_knowledge_base("compat")
+    controller.ingest_files([write(tmp_path / "compat.txt", "compatibility evidence")])
+    package = controller.export_knowledge_base(tmp_path / "compat.zip")
+
+    mismatched_provider = HashEmbeddingProvider(model_name="different-hash-model", dimension=384)
+    fresh = ApplicationController(runtime_dir=tmp_path / "fresh", embedding_provider=mismatched_provider)
+    fresh.start()
+    try:
+        fresh.import_knowledge_base(package)
+        assert False
+    except KnowledgeBaseError as exc:
+        assert "embedding model is incompatible" in str(exc)
+
+    mismatched_dimension = HashEmbeddingProvider(model_name="sha256-hashing-test-v1", dimension=128)
+    fresh_dimension = ApplicationController(runtime_dir=tmp_path / "fresh-dim", embedding_provider=mismatched_dimension)
+    fresh_dimension.start()
+    try:
+        fresh_dimension.import_knowledge_base(package)
+        assert False
+    except KnowledgeBaseError as exc:
+        assert "embedding dimension" in str(exc) or "incompatible" in str(exc)

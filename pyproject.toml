@@ -21,6 +21,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+addopts = ["-m", "not integration"]
+markers = ["integration: tests requiring the real sentence-transformers model"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"

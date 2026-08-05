@@ -168,6 +168,8 @@ def _validate_package_consistency(
             raise RAGError("Knowledge-base embedding provider is incompatible with this runtime.")
         if manifest.get("embedding_model") != embedding_provider.model_name:
             raise RAGError("Knowledge-base embedding model is incompatible with this runtime.")
+        if int(manifest.get("embedding_dimension", -1)) != int(embedding_provider.dimension):
+            raise RAGError("Knowledge-base embedding dimension is incompatible with this runtime.")
 
 
 __all__ = ["clone_kb", "load_package", "replacement_chunk", "save_package"]
