@@ -1,0 +1,4 @@
+Fictional Customer Requirements
+The fictional customer requires Aurora Segment recovery within four hours.
+
+This text file is the source used by tests to generate a temporary DOCX archive at runtime. The repository intentionally does not commit binary office files.

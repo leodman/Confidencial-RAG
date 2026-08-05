@@ -1,55 +1,30 @@
-system:
-  name: "Confidencial RAG"
-  environment: "development"
-  confidential_mode: true
-
 runtime:
-  workspace: "/content/confidencial-rag-runtime"
-  clear_secrets_on_shutdown: true
-  raw_text_logging: false
-
-ui:
-  provider: "gradio"
-  require_authentication: true
-  share_url: false
-
-storage:
-  provider: "local"
-  encrypted_backups: true
-  include_original_documents: false
-
-metadata:
-  provider: "sqlite"
-
+  confidential_mode: true
+  log_raw_text: false
+ingestion:
+  max_files: 200
+  max_file_bytes: 52428800
+  max_total_bytes: 524288000
 chunking:
-  strategy: "structure_aware"
-  chunk_size: 700
-  overlap: 100
-
+  chunk_size: 1000
+  chunk_overlap: 150
 embeddings:
-  provider: "sentence_transformers"
-  model: "BAAI/bge-small-en-v1.5"
-
-vector_store:
-  provider: "faiss"
-
+  provider: sentence_transformers
+  model: sentence-transformers/all-MiniLM-L6-v2
+  batch_size: 32
 retrieval:
-  strategy: "similarity"
-  top_k: 8
-  reranking: false
-
+  top_k: 5
+  minimum_similarity: 0.10
 privacy:
-  enabled: true
   fail_closed: true
-  reversible_tokens: true
-  allow_external_raw_text: false
-  show_sanitized_payload: true
-  persist_raw_debug_data: false
-
-llm:
-  provider: "mock"
-  local_guardian: true
-
-logging:
-  level: "INFO"
-  include_raw_text: false
+  restore_locally: true
+  persist_vault: false
+  external_raw_text_allowed: false
+storage:
+  provider: local
+  allow_overwrite: false
+  max_archive_files: 1000
+  max_archive_uncompressed_bytes: 536870912
+ui:
+  share: false
+  authentication_required: true

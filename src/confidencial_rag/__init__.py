@@ -1,3 +1,4 @@
-"""Confidencial RAG package."""
+__version__ = "0.1.0"
+from .controller import ApplicationController as ApplicationController
 
-__version__ = "0.1.0-dev"
+__all__ = ["ApplicationController"]

@@ -1,43 +1,47 @@
 # Security Policy
 
-## Public repository assumption
+Confidencial RAG Version 1 is an experimental local-first RAG application. It is not production security, not a replacement for formal data-loss-prevention tooling, and not a guarantee that every confidential value will be detected or protected.
 
-Treat every committed file, branch, pull request, issue, workflow log, and artifact in this repository as public. Git history is not a secure deletion mechanism.
+## Public repository assumptions
 
-## Prohibited repository content
+This repository must contain only source code, documentation, configuration examples, and synthetic text fixtures. Do not commit real customer data, confidential documents, notebook outputs, generated archives, vector indexes, model files, databases, screenshots, PDFs, DOCX files, ZIP packages, `.npy`/`.npz` files, or other generated binary artifacts.
 
-Do not commit or upload:
+## Prohibited confidential content
 
-- confidential, personal, regulated, or customer documents;
-- API keys, passwords, access tokens, certificates, encryption keys, or recovery codes;
-- original filenames or metadata that reveal confidential activity;
-- vector stores, embeddings, metadata databases, token maps, or privacy vaults;
-- exported knowledge bases, backups, caches, logs, debug traces, or notebook outputs containing real data.
+Do not place secrets or protected business data in issues, pull requests, tests, example files, documentation, comments, logs, or screenshots. Use obviously fictional synthetic data for examples and vulnerability reports.
 
-Use synthetic fixtures for all public development and testing.
+## API keys and credentials
 
-## Runtime secrets
+API keys, Gradio usernames/passwords, notebook credentials, and provider tokens must be entered only at runtime. They must not be committed, printed, logged, exported in knowledge-base packages, stored in configuration files, or embedded in notebook output.
 
-Secrets must be entered at runtime using hidden input or an approved secret store. They should remain only in process memory where practical, must never be printed or included in exceptions, and must be cleared during safe shutdown.
+## Runtime-only secrets
 
-## Trust boundary
+Version 1 keeps external-provider credentials and privacy token vaults in memory only. Safe shutdown clears active knowledge-base state, provider instances containing keys, token vaults/privacy sessions, temporary upload references, and staging directories.
 
-The active Colab runtime, explicitly trusted connected storage, authenticated browser session, and local privacy components form the confidential processing environment. External LLM providers, public GitHub, and unauthenticated web clients are outside that boundary.
+## External LLM trust boundary
 
-Only an outbound request approved by the privacy gateway and leakage checks may cross to an external LLM. The system must fail closed when sanitization cannot be verified.
+The external LLM is outside the trusted boundary. In `External, confidential` mode, retrieval happens locally first, selected context is sanitized locally with one shared privacy session, the outbound payload is validated for leakage, and only sanitized question/context/citation labels are sent. If sanitization or validation fails, the external call fails closed and is not retried with raw content.
 
-A Colab-hosted web page is not inherently local. Shared or tunneled URLs must be authenticated, treated as internet-accessible, and disabled by default.
+## Token-vault handling
 
-## Logging and errors
+The token vault maps placeholders such as `<EMAIL_0001>` to original values. The vault is local, runtime-only, not displayed, not logged, not exported, and never sent to an external provider. Restoration is performed locally after external generation returns.
 
-Default logs may contain identifiers, counts, timings, hashes, status values, and error codes. They must not contain raw document text, original questions, restored answers, confidential filenames, token maps, credentials, or full external payloads.
+## Safe logging and errors
 
-User-facing errors must not expose filesystem paths, secrets, raw document content, or internal token mappings.
+Logs and user-facing errors should include operational metadata such as counts, states, and safe exception categories. They must not include raw document text, raw questions, retrieved chunks, protected values, API keys, token mappings, local confidential filenames where avoidable, stack traces, or staging paths.
 
-## Backups
+## Gradio shared URL exposure
 
-Knowledge-base exports containing confidential data must be encrypted before leaving the active runtime. Encryption keys and passwords must be stored separately from encrypted backups.
+A Colab `share=True` Gradio URL is internet-accessible to anyone who has the URL. Temporary username/password authentication reduces exposure but does not make the tunnel private infrastructure. Use temporary credentials and shut down the app when finished.
 
-## Reporting vulnerabilities
+## Colab trust assumptions
 
-Do not disclose vulnerabilities using real confidential data in a public issue. Contact the repository owner privately and provide a minimal reproduction using synthetic data.
+Colab runtimes, uploaded files, downloaded archives, package caches, and browser sessions remain part of the user's trust model. Do not upload real confidential material unless you have independently accepted those risks.
+
+## Knowledge-base exports
+
+Version 1 knowledge-base ZIP exports are portable but unencrypted. They include extracted chunk text and local vectors. Protect downloaded archives as sensitive data and delete them when no longer needed.
+
+## Vulnerability reporting
+
+Report suspected vulnerabilities with synthetic examples only. Do not include real secrets, real customer documents, raw token-vault contents, or live API keys in reports.
