@@ -22,7 +22,7 @@ where = ["src"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = ["-m", "not integration"]
-markers = ["integration: tests requiring the real sentence-transformers model"]
+markers = ["integration: tests requiring an installed local ML model"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"

@@ -15,7 +15,9 @@ identified internal projects. Other spaCy labels, including GPE, LOC, PRODUCT, D
 not selected. PRODUCT and TECHNOLOGY are not confidential by default. A configurable, normalized
 public-name allowlist prevents common public technologies—including Azure, Snowflake, AWS, Python,
 Linux, Docker, Kubernetes, OpenAI, Microsoft Azure, and Google Cloud—from being masked even when the
-NER model labels one as an organization. Business-specific customer names are not allowlisted.
+NER model labels one as an organization. The allowlist is exact after whitespace/case normalization:
+company names such as Microsoft remain eligible for COMPANY masking even though a qualified product
+name such as Microsoft Azure is public. Business-specific customer names are not allowlisted.
 
 Manual terms remain authoritative and are reported separately from automatic detections. Reports
 include automatic occurrence counts by category, the custom occurrence count, and total replacement
@@ -25,5 +27,11 @@ incorrectly, and its output can vary when the pinned spaCy/model range is upgrad
 detector can implement the entity-detector interface without changing the gateway API. Failure to
 load or run semantic NER blocks confidential external requests rather than silently using partial
 detection.
+
+Real-model smoke tests record the model's output for both `Claro` and `Claro Enterprise Solutions`.
+`en_core_web_sm` is statistical and does not guarantee that an unfamiliar standalone organization
+will be labeled `ORG` in every sentence; users must add a missed organization as a manual protected
+term. The gateway does not hard-code customer names or turn capitalization back into a semantic
+heuristic merely to force a particular result.
 
 Detected categories include PERSON and COMPANY from local NER, plus email, phone, IPv4, SSN-like strings, credit-card-like strings, API-key-like strings, UUIDs, sensitive URLs, and custom terms. Statistical and regex detection can miss values. The token vault is not logged, displayed, persisted, or sent externally.

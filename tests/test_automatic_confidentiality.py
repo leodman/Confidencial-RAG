@@ -33,6 +33,7 @@ class SyntheticNLP:
         "Azure": "ORG",
         "Snowflake": "ORG",
         "AWS": "ORG",
+        "Microsoft": "ORG",
         "Microsoft Azure": "ORG",
         "Google Cloud": "ORG",
     }
@@ -87,6 +88,12 @@ def test_public_product_and_technology_names_remain_visible(public_name):
     sanitized, _, report = local_gateway().sanitize(f"The platform uses {public_name} for testing.")
     assert public_name in sanitized
     assert report["total_replacements"] == 0
+
+
+def test_plain_company_name_is_not_exempted_by_public_product_allowlist():
+    sanitized, _, report = local_gateway().sanitize("Microsoft signed the agreement.")
+    assert "Microsoft" not in sanitized
+    assert report["automatic"]["COMPANY"] == 1
 
 
 def test_ordinary_capitalized_pdf_style_phrases_are_not_people():

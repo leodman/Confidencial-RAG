@@ -46,7 +46,7 @@ class SpacyEntityDetector:
     """Local semantic NER backed by spaCy's lightweight English pipeline."""
 
     DEFAULT_PUBLIC_NAMES = frozenset({
-        "aws", "amazon web services", "azure", "snowflake", "microsoft", "microsoft azure",
+        "aws", "amazon web services", "azure", "snowflake", "microsoft azure",
         "python", "linux", "openai", "google cloud", "docker", "kubernetes",
     })
     LABEL_MAP = {"PERSON": "PERSON", "ORG": "COMPANY"}
