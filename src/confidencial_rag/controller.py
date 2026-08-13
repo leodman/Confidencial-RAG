@@ -349,7 +349,7 @@ class ApplicationController:
             )
         return citations
 
-    def _response(self, answer: str, citations: list[dict[str, Any]], privacy: dict[str, int], preview: str, external_called: bool) -> dict[str, object]:
+    def _response(self, answer: str, citations: list[dict[str, Any]], privacy: dict[str, object], preview: str, external_called: bool) -> dict[str, object]:
         return {
             "answer": answer,
             "citations": citations,
